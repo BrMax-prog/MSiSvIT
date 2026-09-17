@@ -22,6 +22,14 @@ class HalsteadParserApp:
             ':', '.', ',', '(', '[', '{'
         ]
 
+        self.builtin_funcs = {'println', 'print', 'abs', 'sin', 'cos', 'sqrt'}
+        self.types = {'Int', 'Double', 'String', 'Array', 'Unit',
+                      'Boolean', 'Long', 'Float', 'Short', 'Byte', 'Char'}
+        self.keywords = {'def', 'var', 'val', 'if', 'while', 'for',
+                         'return', 'object', 'class', 'new'}
+        self.treat_funcs_as_operators = tk.BooleanVar(value=True)
+        self.treat_types_as_operators = tk.BooleanVar(value=True)
+
         self.setup_ui()
 
     def setup_ui(self):
@@ -111,16 +119,36 @@ class HalsteadParserApp:
         
         code = re.sub(r'[)\]}]', ' ', code)
 
+        defined_funcs = set(re.findall(r'\bdef\s+([A-Za-z_]\w*)', code))
+        all_funcs = defined_funcs | self.builtin_funcs
+
         tokens = re.findall(r'\b\w+(?:\.\w+)?\b', code)
         
         for token in tokens:
-            if not token in self.blacklist:
-                if re.match(r'^\d+(\.\d+)?$', token):
-                    operands_count[token] = operands_count.get(token, 0) + 1
-                elif token in self.keywords:
-                    operators_count[token] = operators_count.get(token, 0) + 1
+            if token in self.blacklist:
+                continue
+
+            if re.match(r'^\d+(\.\d+)?$', token):
+                # числовая константа
+                operands_count[token] = operands_count.get(token, 0) + 1
+            elif token in self.types:
+                # тип данных: оператор или операнд — по флагу
+                if self.treat_types_as_operators.get():
+                    operators_count[token] = \
+                        operators_count.get(token, 0) + 1
                 else:
-                    operands_count[token] = operands_count.get(token, 0) + 1
+                    operands_count[token] = \
+                        operands_count.get(token, 0) + 1
+            elif token in all_funcs and self.treat_funcs_as_operators.get():
+                # имя функции отнесено к операторам по флагу
+                operators_count[token] = \
+                    operators_count.get(token, 0) + 1
+            elif token in self.keywords:
+                operators_count[token] = \
+                    operators_count.get(token, 0) + 1
+            else:
+                # переменная, имя функции (по умолчанию) и т.п.
+                operands_count[token] = operands_count.get(token, 0) + 1
 
         self.update_results(operators_count, operands_count)
 
